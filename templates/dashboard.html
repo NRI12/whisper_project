@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Dashboard - Transcription System</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 320px;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            overflow-y: auto;
+        }
+
+        .main-content {
+            margin-left: 320px;
+            padding: 2rem;
+        }
+
+        .video-item {
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .video-item:hover {
+            background-color: #f0f0f0;
+        }
+
+        .video-item.active {
+            background-color: #e9ecef;
+        }
+
+        .video-item.processing {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .video-item .dropdown {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .video-item:hover .dropdown {
+            opacity: 1;
+        }
+
+        .search-bar {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 0.5rem 2rem 0.5rem 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+        }
+
+        .btn-link {
+            text-decoration: none;
+        }
+
+        #videoPlayer {
+            width: 100%;
+            max-height: 480px;
+            background: #000;
+        }
+
+        #videoPlayer::-webkit-media-controls {
+            opacity: 1 !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar - Video List -->
+    <div class="sidebar p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="mb-0">Video Management</h4>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addVideoModal" title="Add new video">
+                <i class="fas fa-plus me-2" aria-hidden="true"></i>Add Video
+            </button>
+        </div>
+
+        <div class="search-bar">
+            <input type="text" id="searchInput" name="searchInput" placeholder="Search videos..." class="form-control" aria-label="Search videos">
+        </div>
+
+        <div class="video-list" role="list">
+            <!-- Video items will be loaded here by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Video Player Section -->
+        <div class="mb-4">
+            <video id="videoPlayer" controls>
+                <source src="" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        <div class="mb-3">
+            <button id="downloadTranscript" class="btn btn-outline-primary" disabled title="Download transcription">
+                <i class="fas fa-download me-2"></i>Download Transcription
+            </button>
+        </div>
+        <!-- Transcription Results -->
+        <div class="transcription-results">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Transcription Result</h5>
+                <div class="d-flex align-items-center gap-2">
+                    <select id="languageSelect" class="form-select form-select-sm" style="width: 140px;">
+                        <option value="">Original Text</option>
+                        <option value="vi">Vietnamese</option>
+                        <option value="en">English</option>
+                        <option value="ja">Japanese</option>
+                        <option value="ko">Korean</option>
+                        <option value="zh">Chinese</option>
+                    </select>
+                    <button id="translateBtn" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-language me-1"></i>Translate
+                    </button>
+                </div>
+            </div>
+            <div id="transcriptionText">
+                <!-- Transcription will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Video Modal -->
+    <div class="modal fade" id="addVideoModal" tabindex="-1" aria-labelledby="addVideoModalLabel">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addVideoModalLabel">Add New Video</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="uploadForm">
+                        <div class="mb-3">
+                            <label for="videoInput" class="form-label">Select Video File</label>
+                            <input type="file" class="form-control" id="videoInput" name="videoInput" accept="video/*">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" title="Cancel upload">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="uploadBtn" title="Upload video">
+                        <i class="fas fa-upload me-1" aria-hidden="true"></i>Upload
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing Modal -->
+    <div class="modal fade" id="processingModal" data-bs-backdrop="static" aria-labelledby="processingModalLabel">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center p-4">
+                    <div class="spinner-border text-primary mb-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <h5 class="mb-2" id="processingModalLabel">Processing Video</h5>
+                    <p class="text-muted mb-0">Please wait while we process your video...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger" id="errorModalLabel">
+                        <i class="fas fa-exclamation-circle me-2" aria-hidden="true"></i>Error
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="errorMessage" class="mb-0"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" title="Close error message">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function formatTimestamp(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+        }
+    </script>
+    <script src="{{ url_for('static', path='js/dashboard.js') }}"></script>
+</body>
+</html>
+</html>
