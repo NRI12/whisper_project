@@ -17,3 +17,4 @@ python-multipart
 numpy
 moviepy
 httpx
+yt-dlp

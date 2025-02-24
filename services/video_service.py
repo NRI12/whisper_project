@@ -2,7 +2,8 @@ import os
 import whisper
 from typing import Generator,List
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, UploadFile,status
+from fastapi import HTTPException,status
+from fastapi import UploadFile
 from models.models import TranscriptionHistory
 from utils.video_utils import split_audio
 from schemas.video import TranscriptionHistoryItem
@@ -43,18 +44,23 @@ class TranscriptionService:
             }
     @classmethod
     async def transcribe_and_save(cls, file: Union[UploadFile, str], db: Session, user_id: int):
+        from starlette.datastructures import UploadFile as StarletteUploadFile
+
         # Tạo bản ghi với trạng thái processing = True
-        if isinstance(file, UploadFile):
+        if isinstance(file, StarletteUploadFile):
             original_extension = Path(file.filename).suffix
             random_filename = f"{uuid.uuid4()}{original_extension}"
             upload_dir = os.path.join(os.getcwd(), "uploads", "videos")
             os.makedirs(upload_dir, exist_ok=True)
 
             file_path = os.path.join(upload_dir, random_filename)
+            print(file_path)
             with open(file_path, "wb") as f:
                 f.write(file.file.read())
+            print("la upload file")
         elif isinstance(file, str):
             file_path = file  # Nếu file là string, nó đã là đường dẫn
+            print("la string")
 
         # Tiếp tục xử lý như bình thường
         file_size = os.path.getsize(file_path) / (1024 * 1024)

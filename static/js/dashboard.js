@@ -54,11 +54,16 @@ class VideoDashboard {
             // Xử lý click vào video item (giữ nguyên code cũ)
             const videoItem = e.target.closest('.video-item');
             if (videoItem && !videoItem.classList.contains('processing')) {
-                const videoId = videoItem.dataset.videoId;
-                const video = this.videos.find(v => v.id === parseInt(videoId));
-                if (video) {
-                    this.selectVideo(video);
+                const videoId = Number(videoItem.dataset.videoId); // Chắc chắn nó là số
+                const video = this.videos.find(v => v.id === videoId);
+                
+                if (!video) {
+                    console.error("DEBUG: Không tìm thấy video với ID:", videoId);
+                    return;
                 }
+                console.log("DEBUG: Video đã chọn:", video);
+                this.selectVideo(video);
+                
             }
         });
         // Xử lý tải video từ YouTube
@@ -291,7 +296,7 @@ class VideoDashboard {
             if (this.videoPlayer.src) {
                 URL.revokeObjectURL(this.videoPlayer.src);
             }
-            
+            console.log("DEBUG: videoObjectUrl", videoObjectUrl);
             this.videoPlayer.src = videoObjectUrl;
             this.videoPlayer.load();    
                 

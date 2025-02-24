@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, Depends,status,Request
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends,status,Request
+from fastapi import UploadFile
 from sqlalchemy.orm import Session
 from services.video_service import TranscriptionService
 from database.db import get_db
 from dependencies import get_current_user_id 
 from loguru import logger
-from typing import List
+from typing import List,Union
 from models.models import TranscriptionHistory
 from schemas.video import TranscriptionHistoryItem,GeminiRequest,VideoRequest
 from fastapi.responses import FileResponse
@@ -12,7 +13,7 @@ router = APIRouter()
 transcription_service = TranscriptionService(model_name="tiny")
     
 @router.post("/transcribe")
-async def transcribe_file(file: UploadFile, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+async def transcribe_file(file: Union[UploadFile,str], db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
     segments, text = await TranscriptionService.transcribe_and_save(file, db, user_id=user_id)
     return {"status": "done", "segments": segments, "text": text}
 @router.delete("/transcribe/history/{history_id}", status_code=status.HTTP_204_NO_CONTENT)
