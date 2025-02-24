@@ -23,3 +23,7 @@ class TranscriptionHistoryItem(BaseModel):
         from_attributes = True
 class GeminiRequest(BaseModel):
     text: str
+    language:str
+
+class VideoRequest(BaseModel):
+    url: str

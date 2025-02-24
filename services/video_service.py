@@ -13,6 +13,8 @@ import uuid
 from services.model_service import ModelService
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import httpx
+import yt_dlp
+from typing import Union,Dict
 class TranscriptionService: 
     def __init__(self, model_name: str = None):
         self.model = whisper.load_model(model_name) if model_name else None
@@ -21,7 +23,7 @@ class TranscriptionService:
         service = ModelService()
         try:
             service.load_model()
-            result = service.check_ram_and_use_model(file_path)
+            result = service.run_model(file_path)
             return {
                 "text": result["text"],
                 "segments": result["segments"],
@@ -40,55 +42,45 @@ class TranscriptionService:
                 "segments": result["segments"]
             }
     @classmethod
-    async def transcribe_and_save(cls, file: UploadFile, db: Session, user_id: int):
+    async def transcribe_and_save(cls, file: Union[UploadFile, str], db: Session, user_id: int):
         # Tạo bản ghi với trạng thái processing = True
-        transcription = TranscriptionHistory(
-            user_id=user_id,
-            video_name=file.filename,
-            processing=True,
-            file_path="",
-            file_size=0
-        )
-        db.add(transcription)
-        db.commit()
-        db.refresh(transcription)
-
-        try:
-            # Xử lý file và transcribe
+        if isinstance(file, UploadFile):
             original_extension = Path(file.filename).suffix
             random_filename = f"{uuid.uuid4()}{original_extension}"
             upload_dir = os.path.join(os.getcwd(), "uploads", "videos")
             os.makedirs(upload_dir, exist_ok=True)
-            
+
             file_path = os.path.join(upload_dir, random_filename)
             with open(file_path, "wb") as f:
                 f.write(file.file.read())
+        elif isinstance(file, str):
+            file_path = file  # Nếu file là string, nó đã là đường dẫn
 
-            # Tính các thông số
-            file_size = os.path.getsize(file_path) / (1024 * 1024)
-            video = VideoFileClip(file_path)
-            video_duration = video.duration
-            video.close()
+        # Tiếp tục xử lý như bình thường
+        file_size = os.path.getsize(file_path) / (1024 * 1024)
+        video = VideoFileClip(file_path)
+        video_duration = video.duration
+        video.close()
 
-            # Thực hiện transcribe
-            service = cls()
-            result = service.transcribe_file(file_path)
+        # Thực hiện transcribe
+        service = cls()
+        result = service.transcribe_file(file_path)
 
-            # Cập nhật bản ghi với kết quả
-            transcription.file_path = file_path
-            transcription.file_size = file_size
-            transcription.video_duration = video_duration
-            transcription.text = result["text"]
-            transcription.processing = False
-            db.commit()
+        # Cập nhật bản ghi với kết quả
+        transcription = TranscriptionHistory(
+            user_id=user_id,
+            video_name=Path(file_path).name,
+            processing=False,
+            file_path=file_path,
+            file_size=file_size,
+            video_duration=video_duration,
+            text=result["text"]
+        )
+        db.add(transcription)
+        db.commit()
 
-            return result["segments"], result["text"]
+        return result["segments"], result["text"]
 
-        except Exception as e:
-            # Xóa bản ghi nếu có lỗi
-            db.delete(transcription)
-            db.commit()
-            raise e
     @staticmethod
     def get_user_history(db: Session, user_id: int) -> List[TranscriptionHistoryItem]:
         histories = db.query(TranscriptionHistory).filter(TranscriptionHistory.user_id == user_id).all()
@@ -115,8 +107,9 @@ class TranscriptionService:
         db.delete(history)
         db.commit()
         return {"message": "Transcription history deleted successfully"}
+    
     @staticmethod
-    async def generate_gemini_content(prompt_text: str) -> dict:
+    async def generate_gemini_content(prompt_text: str) -> Dict:
         try:
             gemini_api_key = settings.GEMINI_API_KEY
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_api_key}"
@@ -135,18 +128,41 @@ class TranscriptionService:
             
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
+                response.raise_for_status()  # Kiểm tra nếu request bị lỗi
                 
                 data = response.json()
-                
+
                 # Log response để debug
                 logger.debug(f"Gemini API response: {data}")
-                
+
                 return data
-                
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP error occurred: {e.response.text if hasattr(e, 'response') else str(e)}")
-            raise
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error occurred: {e.response.text if e.response else str(e)}")
+            raise HTTPException(status_code=e.response.status_code if e.response else 500, detail=str(e))
+
         except Exception as e:
             logger.error(f"Gemini API call failed: {str(e)}")
-            raise
+            raise HTTPException(status_code=500, detail="Failed to fetch response from Gemini API")
+    @staticmethod
+    async def download_video(url: str) -> str:
+        try:
+            output_dir = "downloads"
+            os.makedirs(output_dir, exist_ok=True)
+            filename = f"{uuid.uuid4()}.mp4"
+            output_path = os.path.join(output_dir, filename)
+
+            ydl_opts = {
+                'format': 'best',
+                'outtmpl': output_path,
+                'quiet': True,
+                'noplaylist': True,
+            }
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+
+            return output_path
+
+        except Exception as e:
+            raise Exception(f"Failed to download video: {str(e)}")

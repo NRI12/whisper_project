@@ -1,9 +1,11 @@
+
 // utils.js
 function formatTimestamp(seconds) {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
     return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
 }
+
 class VideoDashboard {
     constructor() {
         // Khởi tạo các elements
@@ -16,6 +18,11 @@ class VideoDashboard {
         this.downloadBtn = document.getElementById('downloadTranscript');
         this.currentTranscript = null; // Để lưu transcript hiện tại
         this.downloadBtn.addEventListener('click', () => this.downloadTranscription());
+
+        this.translateBtn = document.getElementById("translateBtn")
+        this.youtubeUrlInput = document.getElementById('youtubeUrlInput');
+        this.processYouTubeBtn = document.getElementById('processYouTubeBtn');
+        this.languageSelect = document.getElementById('languageSelect');
 
         // State management
         this.token = localStorage.getItem('token');
@@ -54,8 +61,119 @@ class VideoDashboard {
                 }
             }
         });
+        // Xử lý tải video từ YouTube
+        this.processYouTubeBtn.addEventListener('click', () => this.handleYouTubeProcessing());
+        // Xử lý dịch văn bản khi nhấn Translate
+        this.translateBtn.addEventListener('click', () => this.handleTranslation());
+    }
+    async handleTranslation() {
+        const targetLang = this.languageSelect.value;
+        if (!targetLang || !this.currentTranscript) return;
+    
+        try {
+            this.translateBtn.disabled = true;
+            this.translateBtn.innerHTML = `
+                <span class="spinner-border spinner-border-sm me-1"></span>
+                Translating...
+            `;    
+            // Tạo prompt cho Gemini    
+            const transcriptionText = this.currentTranscript?.text || "";
+            const prompt = `Translate the following text into ${targetLang}.  
+            ONLY return the translated text, no explanation, no commentary, no additional analysis.  
+            Do not include explanations, notes, comments, or formatting.  
+            Return only the translated text, nothing else.  
+
+            Text to translate:  
+            ${transcriptionText}`;
+                
+            console.log("DEBUG: Prompt for translation:", prompt);
+    
+            const response = await fetch("http://localhost:8000/generate_gemini_content", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${this.token}`
+                },
+                body: JSON.stringify({
+                    text: transcriptionText,
+                    language: targetLang
+                })
+            });
+    
+            if (!response.ok) throw new Error('Translation failed');
+    
+            const result = await response.json();
+        
+            // Cập nhật cả UI và this.currentTranscript.text
+            this.currentTranscript.text = result.translated_text;
+            console.log("update success")
+            this.transcriptionText.innerHTML = `
+                <div class="card">
+                    <div class="card-body">
+                        <p class="mb-0">${this.currentTranscript.text}</p>
+                    </div>
+                </div>
+            `;
+    
+        } catch (error) {
+            console.error('Translation error:', error);
+            this.showError('Failed to translate. Please try again.');
+        } finally {
+            this.translateBtn.disabled = false;
+            this.translateBtn.innerHTML = `
+                <i class="fas fa-language me-1"></i>Translate
+            `;
+        }
+    }
+    async handleYouTubeProcessing() {
+        const videoUrl = this.youtubeUrlInput.value.trim();
+        if (!videoUrl) {
+            this.showError('Please enter a valid YouTube video URL.');
+            return;
+        }
+        if (!this.token) {
+            this.showError('Authentication token is missing. Please login.');
+            return;
+        }
+
+        try {
+            this.showProcessingModal();
+
+            const response = await fetch("http://localhost:8000/transcribe_and_download", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${this.token}`
+                },
+                body: JSON.stringify({ url: videoUrl })
+            });
+
+            const result = await response.json();
+            this.hideProcessingModal();
+
+            if (!response.ok) {
+                throw new Error(result.detail || "An error occurred while processing the video.");
+            }
+
+            this.loadVideos();  // Refresh danh sách video
+        } catch (error) {
+            this.hideProcessingModal();
+            this.showError(error.message);
+        }
     }
 
+    showProcessingModal() {
+        const processingModal = new bootstrap.Modal(document.getElementById("processingModal"));
+        processingModal.show();
+    }
+
+    hideProcessingModal() {
+        const processingModalEl = document.getElementById("processingModal");
+        const modalInstance = bootstrap.Modal.getInstance(processingModalEl);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+    }
     validateVideoFile() {
         const file = this.videoInput.files[0];
         if (file) {
@@ -76,9 +194,7 @@ class VideoDashboard {
                     'Authorization': `Bearer ${this.token}`
                 }
             });
-            
             if (!response.ok) throw new Error('Failed to fetch videos');
-            
             this.videos = await response.json();
             this.renderVideoList();
         } catch (error) {
@@ -155,6 +271,7 @@ class VideoDashboard {
     }
 
     async selectVideo(video) {
+        this.currentTranscript = null
         try {
             const videoUrl = `/video/${video.id}`;
             //Sử dụng fetch để stream với authorization header
@@ -213,26 +330,30 @@ class VideoDashboard {
                 <span class="spinner-border spinner-border-sm me-1"></span>
                 Translating...
             `;
-    
-            // Tạo prompt cho Gemini
-            const prompt = `Translate this text to ${targetLang}:\n${this.originalText}`;
-    
-            // Gọi API
-            const response = await fetch(`${this.API_BASE}/generate_gemini_content`, {
-                method: 'POST',
+            console.log("DEBUG: currentTranscript", JSON.stringify(this.currentTranscript, null, 2));
+
+            // Tạo prompt cho Gemini    
+            const transcriptionText = this.currentTranscript?.text || "";
+            const prompt = `Translate this text to ${targetLang}: ${transcriptionText}`;
+            
+            console.log("DEBUG: Prompt for translation:", prompt);
+            const response = await fetch("http://localhost:8000/generate_gemini_content", {
+                method: "POST",
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${this.token}`
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${this.token}`
                 },
                 body: JSON.stringify({
-                    text: prompt
+                    text: prompt,
+                    language: targetLang
                 })
             });
     
             if (!response.ok) throw new Error('Translation failed');
     
             const result = await response.json();
-    
+            
+            this.currentTranscript.text = result.translated_text
             // Cập nhật UI với bản dịch
             this.transcriptionText.innerHTML = `
                 <div class="card">
@@ -253,37 +374,40 @@ class VideoDashboard {
             `;
         }
     }
-    updateTranscription(data) {
-        this.currentTranscript = data; // Lưu lại data
-        
-        if (data.processing) {
-            this.transcriptionText.innerHTML = `
-                <div class="card">
-                    <div class="card-body text-center">
-                        <div class="spinner-border text-primary mb-2" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mb-0">Video is being processed...</p>
-                    </div>
-                </div>
-            `;
-            this.downloadBtn.disabled = true;
+    downloadTranscription() {    
+        if (!this.currentTranscript || !this.currentTranscript.text) {
+            console.error("DEBUG: No transcription text available.");
             return;
         }
-
-        if (!data.text) {
-            this.transcriptionText.innerHTML = `
-                <div class="card">
-                    <div class="card-body text-center">
-                        <i class="fas fa-info-circle text-muted mb-2"></i>
-                        <p class="mb-0">No transcription available</p>
-                    </div>
-                </div>
-            `;
-            this.downloadBtn.disabled = true;
+            // Tạo file text
+        const blob = new Blob([this.currentTranscript.text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+    
+        // Tạo link tạm thời để download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `transcription_${new Date().getTime()}.txt`; // Tên file với timestamp
+        document.body.appendChild(a);
+        a.click();
+    
+        // Cleanup
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+    
+    updateTranscription(data) {    
+        if (this.currentTranscript && this.currentTranscript.text !== data.text) {
+            console.warn("DEBUG: Skipping update, already translated!");
             return;
         }
-
+        this.currentTranscript = data; // Lưu lại transcript
+        if (!data.text || typeof data.text !== "string") {
+            console.error("DEBUG: No text found in transcription", data);
+            this.downloadBtn.disabled = true; // Vô hiệu hóa nếu không có text
+            return;
+        }
+    
+        // Hiển thị nội dung transcription
         this.transcriptionText.innerHTML = `
             <div class="card">
                 <div class="card-body">
@@ -291,26 +415,10 @@ class VideoDashboard {
                 </div>
             </div>
         `;
-        this.downloadBtn.disabled = false; // Enable download button khi có text
+    
+        this.downloadBtn.disabled = false; // Bật nút Download khi có text
     }
-    downloadTranscription() {
-        if (!this.currentTranscript || !this.currentTranscript.text) return;
-        
-        // Tạo file text
-        const blob = new Blob([this.currentTranscript.text], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        
-        // Tạo link tạm thời để download
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `transcription_${new Date().getTime()}.txt`; // Tên file với timestamp
-        document.body.appendChild(a);
-        a.click();
-        
-        // Cleanup
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
+    
     handleSearch(e) {
         const searchTerm = e.target.value.toLowerCase();
         const filteredVideos = this.videos.filter(video => 

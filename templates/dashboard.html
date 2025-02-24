@@ -7,78 +7,7 @@
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            width: 320px;
-            background: #f8f9fa;
-            border-right: 1px solid #dee2e6;
-            overflow-y: auto;
-        }
-
-        .main-content {
-            margin-left: 320px;
-            padding: 2rem;
-        }
-
-        .video-item {
-            padding: 1rem;
-            border-bottom: 1px solid #dee2e6;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .video-item:hover {
-            background-color: #f0f0f0;
-        }
-
-        .video-item.active {
-            background-color: #e9ecef;
-        }
-
-        .video-item.processing {
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-
-        .video-item .dropdown {
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        .video-item:hover .dropdown {
-            opacity: 1;
-        }
-
-        .search-bar {
-            position: relative;
-            margin-bottom: 1rem;
-        }
-
-        .search-bar input {
-            width: 100%;
-            padding: 0.5rem 2rem 0.5rem 1rem;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-        }
-
-        .btn-link {
-            text-decoration: none;
-        }
-
-        #videoPlayer {
-            width: 100%;
-            max-height: 480px;
-            background: #000;
-        }
-
-        #videoPlayer::-webkit-media-controls {
-            opacity: 1 !important;
-        }
-    </style>
+    <link href="{{ url_for('static', path='css/styles.css') }}" rel="stylesheet">
 </head>
 <body>
     <!-- Sidebar - Video List -->
@@ -89,7 +18,16 @@
                 <i class="fas fa-plus me-2" aria-hidden="true"></i>Add Video
             </button>
         </div>
-
+        <div class="youtube-url-section mt-4">
+            <label for="youtubeUrlInput" class="form-label">Process YouTube Video</label>
+            <div class="input-group">
+                <input type="text" id="youtubeUrlInput" class="form-control" placeholder="Enter YouTube video URL..." aria-label="YouTube URL">
+                <button class="btn btn-primary" id="processYouTubeBtn" title="Process YouTube Video">
+                    <i class="fas fa-play me-1"></i>Process
+                </button>
+            </div>
+        </div>
+    <br>
         <div class="search-bar">
             <input type="text" id="searchInput" name="searchInput" placeholder="Search videos..." class="form-control" aria-label="Search videos">
         </div>
