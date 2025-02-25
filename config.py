@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     SMTP_USER: str = "ctv55345@gmail.com"
     SMTP_PASSWORD: str = "hine cwug losy cpia"
     BASE_URL: ClassVar[str] = "http://localhost:8000"
-    GEMINI_API_KEY: str = "AIzaSyCvqcPKUWNT4rbrp6YcI1czZ4ODN-UJvzM"
+    GEMINI_API_KEY: str = ""
     class Config:
         env_file = ".env"
 
